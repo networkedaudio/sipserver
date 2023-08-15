@@ -1017,13 +1017,7 @@ SWITCH_MODULE_LOAD_FUNCTION(mod_signalwire_load)
 
 	// @todo register nodestore callbacks here if needed
 
-	switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_CONSOLE, "Welcome to\n"
-	"     _____ _                   ___       ___\n"
-	"    / ___/(_)___ _____  ____ _/ / |     / (_)_______\n"
-	"    \\__ \\/ / __ `/ __ \\/ __ `/ /| | /| / / / ___/ _ \\\n"
-	"   ___/ / / /_/ / / / / /_/ / / | |/ |/ / / /  /  __/\n"
-	"  /____/_/\\__, /_/ /_/\\__,_/_/  |__/|__/_/_/   \\___/\n"
-	"         /____/\n");
+	switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_CONSOLE, "SignalWire loading.\n");
 
 	// storage_dir was missing in clean install
 	switch_dir_make_recursive(SWITCH_GLOBAL_dirs.storage_dir, SWITCH_DEFAULT_DIR_PERMS, pool);
