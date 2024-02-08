@@ -30,10 +30,11 @@
 #define DEFAULT_CONTEXT_NAME "ts"
 #define DEFAULT_CONTEXT_WAIT 10 // ms
 
-#define MAKE_TS_ELEMENT(var, factory, name, context) \
+
+#define MAKE_TS_ELEMENT(var, factory, name, context, wait) \
   do { \
     var = gst_element_factory_make (factory, name); \
-    g_object_set(var, "context-wait", DEFAULT_CONTEXT_WAIT, \
+    g_object_set(var, "context-wait", wait, \
         "context", context, NULL); \
   } while (0)
 
@@ -236,7 +237,7 @@ add_appsink (g_stream_t *stream, guint ch_idx, gchar *session)
 #ifndef ENABLE_THREADSHARE
       queue = gst_element_factory_make ("queue", name);
 #else
-      MAKE_TS_ELEMENT(queue, "ts-queue", name, stream->ts_ctx);
+      MAKE_TS_ELEMENT(queue, "ts-queue", name, stream->ts_ctx, DEFAULT_CONTEXT_WAIT);
 #endif
 
   NAME_SESSION_ELEMENT(name, "appsink", ch_idx, session);
@@ -391,7 +392,7 @@ create_pipeline (pipeline_data_t *data, event_callback_t * error_cb)
 #ifndef ENABLE_THREADSHARE
     udp_source = gst_element_factory_make ("udpsrc", "rx-src");
 #else
-    MAKE_TS_ELEMENT(udp_source, "ts-udpsrc", "rx-src", ts_ctx);
+    MAKE_TS_ELEMENT(udp_source, "ts-udpsrc", "rx-src", ts_ctx, DEFAULT_CONTEXT_WAIT);
 #endif
     g_object_set(udp_source, "buffer-size", 1048576, NULL);
 
@@ -414,6 +415,7 @@ create_pipeline (pipeline_data_t *data, event_callback_t * error_cb)
     }
 
     rtpjitbuf = gst_element_factory_make("rtpjitterbuffer", "rx-jitbuf");
+
     g_signal_connect_data(rtpjitbuf, "request-pt-map", G_CALLBACK(request_pt_map),
         gst_caps_ref(udp_caps), destroy_caps, 0);
 
@@ -555,8 +557,11 @@ create_pipeline (pipeline_data_t *data, event_callback_t * error_cb)
     tx_audioconv = gst_element_factory_make ("audioconvert", "tx-audioconv");
     g_object_set(tx_audioconv, "dithering", 0 /* none */, NULL);
 
+#ifndef ENABLE_THREADSHARE
     udpsink = gst_element_factory_make ("udpsink", "tx-sink");
-
+#else
+  MAKE_TS_ELEMENT(udpsink, "ts-udpsink", "tx-sink", ts_ctx, 1);
+#endif
     caps = gst_caps_new_simple ("audio/x-raw",
         "rate", G_TYPE_INT, data->sample_rate,
         "channels", G_TYPE_INT, data->channels,
@@ -567,10 +572,17 @@ create_pipeline (pipeline_data_t *data, event_callback_t * error_cb)
     g_object_set (capsfilter, "caps", caps, NULL);
     gst_caps_unref (caps);
 
+#ifndef ENABLE_THREADSHARE
     g_object_set (udpsink, "host", data->tx_ip_addr, "port", data->tx_port, "multicast-iface", data->rtp_iface, NULL);
     g_object_set (udpsink, "sync", TRUE, "async", FALSE, NULL);
     g_object_set (udpsink, "qos", TRUE, "qos-dscp", 34, NULL);
     g_object_set (udpsink, "processing-deadline", 0 * GST_MSECOND, NULL);
+#else
+    char client[IP_ADDR_MAX_LEN + 10];
+    g_snprintf(client, IP_ADDR_MAX_LEN + 10 , "%s:%d", data->tx_ip_addr, data->tx_port);
+    g_object_set (udpsink, "clients", client, "sync", TRUE, NULL);
+    g_object_set (udpsink, "qos-dscp", 34, "multicast-iface", data->rtp_iface, NULL);
+#endif
 
     if (!audiointerleave || !tx_valve || !tx_audioconv || !rtp_pay || !udpsink) {
       switch_log_printf (SWITCH_CHANNEL_LOG, SWITCH_LOG_ERROR,
