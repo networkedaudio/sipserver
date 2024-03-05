@@ -173,7 +173,6 @@ src/mod/modules.inc
 
 BuildLog.htm
 
-!x64/conf
 
 !/libs/win32/
 !/libs/speex/win32/
@@ -181,6 +180,12 @@ BuildLog.htm
 *.suo
 *.sdf
 x64/
+!x64/Debug/conf/*
+!x64/Release/conf/*
+!x64/Debug/cert/*
+!x64/Release/cert/*
+!x64/Debug/mod/*
+!x64/Release/mod/*
 ipch/
 
 
