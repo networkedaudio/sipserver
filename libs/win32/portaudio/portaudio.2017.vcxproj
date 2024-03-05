@@ -268,7 +268,7 @@
     </Midl>
     <ClCompile>
       <Optimization>Disabled</Optimization>
-      <AdditionalIncludeDirectories>..\..\portaudio\src\common;..\..\portaudio\include;.\;..\..\portaudio\src\os\win;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\..\portaudio\src\common;..\..\portaudio\include;.\;..\..\portaudio\src\os\win;..\..\..\..\..\asiosdk_2.3.3_2019-06-14\common\;..\..\..\..\..\asiosdk_2.3.3_2019-06-14\common\host\;..\..\..\..\..\asiosdk_2.3.3_2019-06-14\host\;..\..\..\..\..\asiosdk_2.3.3_2019-06-14\host\pc;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>WIN32;_DEBUG;_USRDLL;PA_ENABLE_DEBUG_OUTPUT;_CRT_SECURE_NO_DEPRECATE;PA_USE_DS;PAWIN_USE_WDMKS_DEVICE_INFO;PAWIN_WDMKS_NO_KSGUID_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <MinimalRebuild>true</MinimalRebuild>
       <BasicRuntimeChecks>EnableFastChecks</BasicRuntimeChecks>
