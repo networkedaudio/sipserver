@@ -555,6 +555,12 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "mod_grpc", "src\mod\applica
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "SIPServerEmbedded", "SIPServer\SIPServerEmbedded.csproj", "{2E5326FB-A5F1-404B-9E95-47FE7D9AE348}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "managed", "managed", "{9A6031CB-A29E-420E-914E-1C8702BA6389}"
+	ProjectSection(SolutionItems) = preProject
+		src\mod\managed\CommunicatorConnector.csx = src\mod\managed\CommunicatorConnector.csx
+		src\mod\managed\SAPAnnouncer.csx = src\mod\managed\SAPAnnouncer.csx
+	EndProjectSection
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		All|Any CPU = All|Any CPU

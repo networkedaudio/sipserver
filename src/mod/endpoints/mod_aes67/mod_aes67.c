@@ -430,7 +430,7 @@ channel_on_routing (switch_core_session_t * session)
       switch_mutex_unlock (globals.pvt_lock);
 
 	  switch_mutex_lock (tech_pvt->audio_endpoint->mutex);
-	  if (tech_pvt->audio_endpoint && tech_pvt->audio_endpoint->in_stream) {
+	  if (tech_pvt->audio_endpoint && tech_pvt->audio_endpoint->in_stream->stream) {
 		  audio_endpoint_t *audio_endp = tech_pvt->audio_endpoint;
 
 		  STREAM_READER_LOCK(tech_pvt->audio_endpoint->in_stream);
@@ -923,7 +923,7 @@ channel_kill_channel (switch_core_session_t * session, int sig)
 
       switch_mutex_lock (tech_pvt->audio_endpoint->mutex);
 
-      if (tech_pvt->audio_endpoint && tech_pvt->audio_endpoint->in_stream) {
+      if (tech_pvt->audio_endpoint && tech_pvt->audio_endpoint->in_stream->stream) {
         audio_endpoint_t *audio_endp = tech_pvt->audio_endpoint;
 
         STREAM_READER_LOCK(tech_pvt->audio_endpoint->in_stream);

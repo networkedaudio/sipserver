@@ -2463,7 +2463,7 @@ SWITCH_DECLARE(void) switch_setenv (const char *var, const char *value, int over
  pick from only that location
  */
 static void switch_update_media_env_path () {
-
+#ifdef _SETPATH		//do nothing, this fails
 #define MAX_PATH_LEN 10000
 #define MAX_VAR_LEN 100
 	char * mod_dir = SWITCH_GLOBAL_dirs.mod_dir;
@@ -2505,6 +2505,7 @@ static void switch_update_media_env_path () {
 	switch_log_printf (SWITCH_CHANNEL_LOG, SWITCH_LOG_INFO, "Updating %s as %s\n",variable, new_path);
 
 	switch_setenv (variable, new_path, 1);
+#endif
 }
 
 SWITCH_DECLARE(switch_status_t) switch_core_init_and_modload(switch_core_flag_t flags, switch_bool_t console, const char **err)
