@@ -128,7 +128,7 @@
       <TargetEnvironment>X64</TargetEnvironment>
     </Midl>
     <ClCompile>
-      <AdditionalIncludeDirectories>%(RootDir)%(Directory)..\..\..\..\libs\portaudio\include;%(RootDir)%(Directory)..\..\..\..\libs\portaudio\src\os\win;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>%(RootDir)%(Directory)..\..\..\..\libs\portaudio\include;%(RootDir)%(Directory)..\..\..\..\libs\portaudio\src\os\win;C:\Users\asymptotic\Downloads\npcap-sdk-1.13\Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>WIN32;_DEBUG;_WINDOWS;_USRDLL;MOD_EXPORTS;ALLOW_SMP_DANGERS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PrecompiledHeader>
       </PrecompiledHeader>
@@ -167,7 +167,7 @@
       <TargetEnvironment>X64</TargetEnvironment>
     </Midl>
     <ClCompile>
-      <AdditionalIncludeDirectories>%(RootDir)%(Directory)..\..\..\..\libs\portaudio\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>%(RootDir)%(Directory)..\..\..\..\libs\portaudio\include;C:\Users\asymptotic\Downloads\npcap-sdk-1.13\Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>ALLOW_SMP_DANGERS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PrecompiledHeader>
       </PrecompiledHeader>
@@ -187,9 +187,12 @@
   <ItemGroup>
     <ClCompile Include="aes67_api.c" />
     <ClCompile Include="mod_aes67.c" />
+    <ClCompile Include="pcap_wrap.c" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="aes67_api.h" />
+    <ClInclude Include="aes67_api.h"/>
+    <ClInclude Include="pcap_wrap.h"/>
+    <ClInclude Include="ptp.h"/>
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\..\..\libs\win32\apr\libapr.2017.vcxproj">

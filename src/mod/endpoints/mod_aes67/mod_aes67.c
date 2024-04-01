@@ -44,6 +44,7 @@
 #include <string.h>
 #include "aes67_api.h"
 #include <gst/net/net.h>
+#include "pcap_wrap.h"
 
 #define MY_EVENT_RINGING "aes67::ringing"
 #define MY_EVENT_MAKE_CALL "aes67::makecall"
@@ -303,6 +304,7 @@ static struct
   int8_t ptp_domain;
   /* Network interface to be used for PTP */
   char ptp_iface[NW_IFACE_LEN];
+  pcap_t *pcap_handle;
 } globals;
 
 
@@ -2012,6 +2014,11 @@ void clock_synced_cb(GstClock *ptp_clock, gboolean synced, void* data)
     STREAM_WRITER_UNLOCK(s);
   }
   switch_mutex_unlock(globals.sh_shtreams_lock);
+
+  // wait for the stream to remove the update_clock callback
+  // because that uses this handle to read the pcap packets
+  if (globals.pcap_handle)
+    close_pcap_fp(globals.pcap_handle);
 }
 
 static void *
@@ -2649,16 +2656,24 @@ load_config (void)
   globals.ptp_stats_cb_id = -1; /* default to -1 */
   globals.rtp_jitbuf_latency = 10;
   memset(globals.ptp_iface, 0, NW_IFACE_LEN);
+  globals.pcap_handle = NULL;
 
   if(SWITCH_STATUS_SUCCESS != (status = load_globals(cfg))) {
     return status;
   }
 
-  if (globals.ptp_domain >= 0) {
+  if (globals.synthetic_ptp) {
+    if (NULL == (globals.pcap_handle = open_pcap_fp(globals.ptp_iface))) {
+	    switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_ERROR, "\nFailed to open \n");
+    }
+  } else if (globals.ptp_domain >= 0) {
     void *ptp_clock = init_ptp (globals.ptp_domain, globals.ptp_iface);
     if (NULL == ptp_clock) {
       switch_log_printf (SWITCH_CHANNEL_LOG, SWITCH_LOG_INFO,"Switching to Synthetic PTP \n");
       globals.synthetic_ptp = 1;
+      if (NULL != (globals.pcap_handle = open_pcap_fp(globals.ptp_iface))) {
+        switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_DEBUG, "\nfound interface and fp opened\n");
+      }
     } else {
       /* using PTP clock, clean up the default GST_CLOCK_TYPE_REALTIME clock */
       gst_object_unref (globals.clock);
@@ -2732,6 +2747,9 @@ SWITCH_MODULE_SHUTDOWN_FUNCTION (mod_aes67_shutdown)
   destroy_shared_audio_streams ();
   destroy_codecs ();
   gst_ptp_deinit ();
+
+  if (globals.pcap_handle)
+    close_pcap_fp(globals.pcap_handle);
 
   if (globals.clock)
     gst_object_unref (globals.clock);
@@ -2891,6 +2909,7 @@ open_audio_stream (g_stream_t ** stream, udp_sock_t * indev,
   data.rtp_iface = globals.rtp_iface;
   data.rtp_payload_type = globals.rtp_payload_type;
   data.rtp_jitbuf_latency = globals.rtp_jitbuf_latency;
+  data.pcap_handle = globals.pcap_handle;
 
   *stream = create_pipeline (&data, error_callback);
 
@@ -2935,6 +2954,7 @@ int open_shared_audio_stream (shared_audio_stream_t * shstream)
   data.rtp_jitbuf_latency = shstream->rtp_jitbuf_latency;
   data.txdrop = !shstream->txflow;
   data.ts_context_name = shstream->ts_context_name;
+  data.pcap_handle = globals.pcap_handle;
 
   shstream->stream = create_pipeline (&data, error_callback);
   return 0;

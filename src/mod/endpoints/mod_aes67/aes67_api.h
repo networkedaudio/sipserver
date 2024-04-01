@@ -3,6 +3,7 @@
 
 #include <gst/gst.h>
 #include <switch.h>
+#include "pcap_wrap.h"
 
 #define DIRECTION_TX 1 << 0
 #define DIRECTION_RX 1 << 1
@@ -44,6 +45,7 @@ typedef struct
   int rtp_jitbuf_latency;
   gboolean txdrop;
   char *ts_context_name;
+  pcap_t *pcap_handle;
 } pipeline_data_t;
 
 struct g_stream
@@ -59,6 +61,7 @@ struct g_stream
   GstClock *clock;
   gint sample_rate;
   char *ts_ctx;
+  pcap_t *pcap_handle;
 };
 
 g_stream_t *create_pipeline (pipeline_data_t *data, event_callback_t * error_cb);

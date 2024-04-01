@@ -4,6 +4,11 @@
 #include <gst/audio/audio-channels.h>
 #include <gst/net/net.h>
 #include "aes67_api.h"
+#include "pcap_wrap.h"
+#include "ptp.h"
+
+#include "winsock2.h"   //need winsock for inet_ntoa and ntohs methods
+#pragma comment(lib , "ws2_32.lib") //For winsock
 
 #define ELEMENT_NAME_SIZE 20
 #define STR_SIZE 15
@@ -176,33 +181,192 @@ deinterleave_pad_added (GstElement * deinterleave, GstPad * pad,
   g_free (pad_name);
 }
 
+/* IEEE 1588-2008 13.6 */
+static gboolean parse_ptp_message_sync(PtpMessage *msg, GstByteReader *reader, guint64 *timestamp)
+{
+	g_return_val_if_fail(msg->message_type == PTP_MESSAGE_TYPE_SYNC, FALSE);
+
+	if (gst_byte_reader_get_remaining(reader) < 10) return FALSE;
+
+	if (!parse_ptp_timestamp(&msg->message_specific.sync.origin_timestamp, reader)) return FALSE;
+
+	*timestamp = msg->message_specific.sync.origin_timestamp.seconds_field * GST_SECOND +
+				 msg->message_specific.sync.origin_timestamp.nanoseconds_field;
+	switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_DEBUG, "Sync time stamp is %llu\n", *timestamp);
+
+	return TRUE;
+}
+
+/* IEEE 1588-2008 5.3.3 */
+static gboolean parse_ptp_timestamp(PtpTimestamp *timestamp, GstByteReader *reader)
+{
+	g_return_val_if_fail(gst_byte_reader_get_remaining(reader) >= 10, FALSE);
+
+	timestamp->seconds_field = (((guint64)gst_byte_reader_get_uint32_be_unchecked(reader)) << 16) |
+							   gst_byte_reader_get_uint16_be_unchecked(reader);
+	timestamp->nanoseconds_field = gst_byte_reader_get_uint32_be_unchecked(reader);
+
+	if (timestamp->nanoseconds_field >= 1000000000) return FALSE;
+
+	return TRUE;
+}
+
+/* IEEE 1588-2008 13.3 */
+static gboolean parse_ptp_message_header(PtpMessage *msg, GstByteReader *reader)
+{
+	guint8 b;
+
+	g_return_val_if_fail(gst_byte_reader_get_remaining(reader) >= 34, FALSE);
+
+	b = gst_byte_reader_get_uint8_unchecked(reader);
+	msg->transport_specific = b >> 4;
+	msg->message_type = b & 0x0f;
+
+	b = gst_byte_reader_get_uint8_unchecked(reader);
+	msg->version_ptp = b & 0x0f;
+	if (msg->version_ptp != 2) {
+		// switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_DEBUG, "Unsupported PTP message version (%u != 2)",
+		// 				  msg->version_ptp);
+		return FALSE;
+	}
+
+	msg->message_length = gst_byte_reader_get_uint16_be_unchecked(reader);
+	if (gst_byte_reader_get_remaining(reader) + 4 < msg->message_length) {
+		// switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_DEBUG, "Not enough data (%u < %u)\n",
+		// 				  gst_byte_reader_get_remaining(reader) + 4, msg->message_length);
+		return FALSE;
+	}
+
+	msg->domain_number = gst_byte_reader_get_uint8_unchecked(reader);
+	gst_byte_reader_skip_unchecked(reader, 1);
+
+	msg->flag_field = gst_byte_reader_get_uint16_be_unchecked(reader);
+	msg->correction_field = gst_byte_reader_get_uint64_be_unchecked(reader);
+	gst_byte_reader_skip_unchecked(reader, 4);
+
+	msg->source_port_identity.clock_identity = gst_byte_reader_get_uint64_be_unchecked(reader);
+	msg->source_port_identity.port_number = gst_byte_reader_get_uint16_be_unchecked(reader);
+
+	msg->sequence_id = gst_byte_reader_get_uint16_be_unchecked(reader);
+	msg->control_field = gst_byte_reader_get_uint8_unchecked(reader);
+	msg->log_message_interval = gst_byte_reader_get_uint8_unchecked(reader);
+
+	return TRUE;
+}
+
+static gboolean parse_ptp_message(PtpMessage *msg, const guint8 *data, gsize size, guint64 *timestamp)
+{
+	GstByteReader reader;
+	gboolean ret = FALSE;
+
+	gst_byte_reader_init(&reader, data, size);
+
+	if (!parse_ptp_message_header(msg, &reader)) {
+		// switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_DEBUG, "Failed to parse PTP message header");
+		return FALSE;
+	}
+
+	switch (msg->message_type) {
+	case PTP_MESSAGE_TYPE_SYNC:
+		ret = parse_ptp_message_sync(msg, &reader, timestamp);
+		break;
+	default:
+		/* ignore for now */
+		break;
+	}
+
+	return ret;
+}
+
+static gboolean parse_udp_data(PtpMessage * msg, const gchar* data, guint len, guint64 * ptp_timestamp)
+{
+    gboolean ret = FALSE;
+    int iphdrlen = 0 , data_size = 0;
+
+    ipv4_hdr *iphdr = (ipv4_hdr *)(data + sizeof(ethernet_hdr));
+    iphdrlen = iphdr->ip_header_len*4;
+
+    udp_hdr *udpheader = (udp_hdr*)( data + iphdrlen + sizeof(ethernet_hdr) );
+
+    guint8 *payload = (guint8 *) ( data + sizeof(ethernet_hdr) + iphdrlen + sizeof(udp_hdr) );
+    data_size = (len - sizeof(ethernet_hdr) - iphdrlen - sizeof(udp_hdr));
+    ret = parse_ptp_message (msg, payload, data_size, ptp_timestamp);
+
+    return ret;
+}
+
+static gboolean parse_raw_data (PtpMessage * msg, const gchar* data, guint len, guint64 * ptp_timestamp)
+{
+  ethernet_hdr *ethhdr = (ethernet_hdr *)data;
+  gboolean ret = FALSE;
+
+  if (ntohs(ethhdr->type)) {
+    ipv4_hdr *ip_hdr = (ipv4_hdr *)(data + sizeof(ethernet_hdr));
+      switch (ip_hdr->ip_protocol) {
+        case 1: //ICMP Protocol
+          break;
+
+          case 2: //IGMP Protocol
+          break;
+
+          case 6: //TCP Protocol
+          break;
+
+          case 17: //UDP Protocol
+          ret = parse_udp_data(msg, data, len, ptp_timestamp);
+          break;
+
+          default: //Some Other Protocol like ARP etc.
+          break;
+      }
+  }
+  return ret;
+}
+
 gboolean update_clock (gpointer userdata) {
   g_stream_t *stream = (g_stream_t *) userdata;
   GstStructure *stats = NULL;
   guint32 rtp_timestamp;
+  guint64 ptp_timestamp;
   GstElement *pipeline;
-  GstClockTime internal, external;
+  GstClockTime internal, external, arrival;
   gdouble r_sq;
   GstElement *rtpdepay;
+  pcap_t *pcap_handle = (pcap_t *)stream->pcap_handle;
+  gchar *pcap_pkt_data;
+  struct pcap_pkthdr *pcap_header;
+  PtpMessage msg;
+  gboolean ret;
+  guint res=0;
 
   pipeline = (GstElement *) stream->pipeline;
   rtpdepay = gst_bin_get_by_name (GST_BIN (pipeline), RTP_DEPAY);
 
   g_object_get (G_OBJECT(rtpdepay), "stats", &stats, NULL);
 
-  if (gst_structure_get_uint(stats, "timestamp", &rtp_timestamp) ) {
-    switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_DEBUG, "rtp timestamp in rtpdepay %u\n", rtp_timestamp);
+  // if (gst_structure_get_uint(stats, "timestamp", &rtp_timestamp) ) {
+  if (pcap_handle && ((res = pcap_next_ex(pcap_handle, &pcap_header, &pcap_pkt_data)) > 0)) {
+    if (parse_raw_data(&msg, pcap_pkt_data, pcap_header->caplen, &ptp_timestamp)) {
 
-    internal = gst_clock_get_internal_time(stream->clock);
-    external = gst_util_uint64_scale (rtp_timestamp, GST_SECOND, stream->sample_rate);
+      // switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_DEBUG, "rtp timestamp in rtpdepay %u\n", rtp_timestamp);
 
-    if (gst_clock_add_observation(stream->clock, internal, external, &r_sq) &&
-        !g_atomic_int_get (&stream->clock_sync)) {
-      g_atomic_int_set(&stream->clock_sync, 1);
+      internal = gst_clock_get_internal_time(stream->clock);
+      arrival = pcap_header->ts.tv_sec * GST_SECOND + pcap_header->ts.tv_usec * GST_USECOND;
+      external = ptp_timestamp;
 
-      gst_pipeline_use_clock (GST_PIPELINE (pipeline), stream->clock);
-      gst_pipeline_set_clock (GST_PIPELINE (pipeline), stream->clock);
+      switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_DEBUG, "internal timestamp %llu and arrival time in from pcap %llu\n", internal, arrival);
+      switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_DEBUG, "external timestamp in from pcap %llu\n", external);
+
+      if (gst_clock_add_observation(stream->clock, arrival, external, &r_sq) &&
+        !g_atomic_int_get(&stream->clock_sync)) {
+        g_atomic_int_set(&stream->clock_sync, 1);
+
+        gst_pipeline_use_clock(GST_PIPELINE(pipeline), stream->clock);
+        gst_pipeline_set_clock(GST_PIPELINE(pipeline), stream->clock);
+      }
     }
+  } else {
+    switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_ERROR, "failed to read packet %d\n", res);
   }
 
   gst_structure_free(stats);
@@ -607,13 +771,13 @@ create_pipeline (pipeline_data_t *data, event_callback_t * error_cb)
     /* We have data->codec_ms of latency in the audiointerleave, so add that in */
     /* FIXME: we should be cleverer and apply the pipeline latency as computed instead */
     g_object_set (rtp_pay, "timestamp-offset",
-        gst_util_uint64_scale_int ((data->codec_ms + data->rtp_ts_offset) * GST_MSECOND, data->sample_rate, GST_SECOND)
-          % G_MAXUINT32,
+        gst_util_uint64_scale_int ((data->codec_ms + data->rtp_ts_offset) * GST_MSECOND, data->sample_rate, GST_SECOND),
         NULL);
   }
 
   if (rtpdepay && data->synthetic_ptp) {
-    stream->clock = g_object_new (GST_TYPE_SYSTEM_CLOCK, "name", "SyntheticPtpClock", NULL);
+    stream->clock = g_object_new (GST_TYPE_SYSTEM_CLOCK, "name", "SyntheticPtpClock", "clock-type", GST_CLOCK_TYPE_REALTIME, NULL);
+    stream->pcap_handle = data->pcap_handle;
     stream->cb_rx_stats_id =
       g_timeout_add_full(G_PRIORITY_DEFAULT, SYNTHETIC_CLOCK_INTERVAL_MS, update_clock, stream, NULL);
     /* We'll set the pipeline clock once it's synced */
