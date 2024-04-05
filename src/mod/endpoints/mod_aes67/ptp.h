@@ -1,3 +1,32 @@
+#ifndef PTP_H
+#define PTP_H
+
+/* GStreamer
+ * Copyright (C) 2015 Sebastian Dröge <sebastian@centricular.com>
+ *
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Library General Public
+ * License as published by the Free Software Foundation; either
+ * version 2 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Library General Public License for more details.
+ *
+ * You should have received a copy of the GNU Library General Public
+ * License along with this library; if not, write to the
+ * Free Software Foundation, Inc., 51 Franklin St, Fifth Floor,
+ * Boston, MA 02110-1301, USA.
+ *
+ */
+
+/*
+ * The code in this file is a modified version of the original code copied from
+ * https://gitlab.freedesktop.org/gstreamer/gstreamer/subprojects/gstreamer/libs/gst/net/gstptpclock.h
+ */
+
 #include <gst/gst.h>
 #include <gst/base/base.h>
 
@@ -31,22 +60,6 @@ typedef struct
   guint64 clock_identity;
   guint16 port_number;
 } PtpClockIdentity;
-
-// static gint
-// compare_clock_identity (const PtpClockIdentity * a, const PtpClockIdentity * b)
-// {
-//   if (a->clock_identity < b->clock_identity)
-//     return -1;
-//   else if (a->clock_identity > b->clock_identity)
-//     return 1;
-
-//   if (a->port_number < b->port_number)
-//     return -1;
-//   else if (a->port_number > b->port_number)
-//     return 1;
-
-//   return 0;
-// }
 
 typedef struct
 {
@@ -110,3 +123,10 @@ typedef struct
 
   } message_specific;
 } PtpMessage;
+
+gboolean parse_ptp_message_sync(PtpMessage *msg, GstByteReader *reader, guint64 *timestamp);
+gboolean parse_ptp_timestamp(PtpTimestamp *timestamp, GstByteReader *reader);
+gboolean parse_ptp_message_header(PtpMessage *msg, GstByteReader *reader);
+gboolean parse_ptp_message(PtpMessage *msg, const guint8 *data, gsize size, guint64 *timestamp);
+
+#endif //PTP_H

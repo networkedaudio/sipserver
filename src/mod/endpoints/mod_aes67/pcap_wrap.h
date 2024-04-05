@@ -4,6 +4,10 @@
 #include <pcap.h>
 #include <switch.h>
 
+/*
+ * The struct definitions in this file are picked from
+ * https://github.com/seifzadeh/c-network-programming-best-snipts/blob/master/Code%20a%20packet%20sniffer%20in%20C%20with%20winpcap
+*/
 
 // FIXME: can we get the below structs from any std header?
 // Ethernet Header
@@ -83,10 +87,6 @@ typedef struct {
 	unsigned short seq;
 } icmp_hdr;
 
-
-// struct sockaddr_in source, dest;
-
-// Its free!
 ethernet_hdr *ethhdr;
 ipv4_hdr *iphdr;
 tcp_hdr *tcpheader;

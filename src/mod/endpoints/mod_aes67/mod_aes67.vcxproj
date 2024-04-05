@@ -188,6 +188,7 @@
     <ClCompile Include="aes67_api.c" />
     <ClCompile Include="mod_aes67.c" />
     <ClCompile Include="pcap_wrap.c" />
+    <ClCompile Include="ptp.c" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="aes67_api.h"/>

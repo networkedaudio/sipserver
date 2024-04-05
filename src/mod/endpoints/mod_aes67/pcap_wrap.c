@@ -1,7 +1,16 @@
 #include "pcap_wrap.h"
 #include <iphlpapi.h>
 
-// Download the npcap SDK from https://npcap.com/#download
+/*
+ * 1. Download Npcap installer from https://npcap.com/dist/npcap-1.79.exe
+ * 2. Run the exe to install the dlls to C:\Windows\System32\Npcap
+ * 3. Add C:\Windows\System32\Npcap to the "Path" System environment variable
+ * 4. Download the npcap SDK from https://npcap.com/#download
+ * 5. Extract the npcap-sdk-1.13.zip to the preferred location
+ * 6. Edit the path of wpcap.lib below
+ * 7. Edit the AdditionalIncludeDirectories in the  mod_aes67.vcproj with Include directory path inside
+ *    the ncpap-sdk directory
+*/
 #pragma comment(lib, "C:\\Users\\asymptotic\\Downloads\\npcap-sdk-1.13\\Lib\\x64\\wpcap.lib")
 #pragma comment(lib, "IPHLPAPI.lib")
 #define MALLOC(x) HeapAlloc(GetProcessHeap(), 0, (x))
