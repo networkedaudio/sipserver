@@ -489,6 +489,7 @@ create_pipeline (pipeline_data_t *data, event_callback_t * error_cb)
   if (data->direction & DIRECTION_TX) {
     GstElement *udpsink, *tx_audioconv, *audiointerleave, *capsfilter, *tx_valve;
     GstElement *appsrc;
+    GstElement *queue;
     GstCaps *caps = NULL;
 
     audiointerleave =
@@ -558,6 +559,12 @@ create_pipeline (pipeline_data_t *data, event_callback_t * error_cb)
     g_object_set(tx_audioconv, "dithering", 0 /* none */, NULL);
 
 #ifndef ENABLE_THREADSHARE
+    queue = gst_element_factory_make ("queue", "tx-queue");
+#else
+  MAKE_TS_ELEMENT(queue, "ts-queue", "tx-ts-queue", ts_ctx, 1);
+#endif
+
+#ifndef ENABLE_THREADSHARE
     udpsink = gst_element_factory_make ("udpsink", "tx-sink");
 #else
   MAKE_TS_ELEMENT(udpsink, "ts-udpsink", "tx-sink", ts_ctx, 1);
@@ -584,17 +591,17 @@ create_pipeline (pipeline_data_t *data, event_callback_t * error_cb)
     g_object_set (udpsink, "qos-dscp", 34, "multicast-iface", data->rtp_iface, NULL);
 #endif
 
-    if (!audiointerleave || !tx_valve || !tx_audioconv || !rtp_pay || !udpsink) {
+    if (!audiointerleave || !tx_valve || !tx_audioconv || !rtp_pay || !udpsink || !queue) {
       switch_log_printf (SWITCH_CHANNEL_LOG, SWITCH_LOG_ERROR,
           "Failed to create tx elements\n");
       goto error;
     }
 
     gst_bin_add_many (GST_BIN (pipeline), tx_valve, capsfilter, tx_audioconv, rtp_pay,
-        udpsink, NULL);
+        udpsink, queue , NULL);
 
     if (!gst_element_link_many (audiointerleave, tx_valve, capsfilter, tx_audioconv,
-            rtp_pay, udpsink, NULL)) {
+            queue, rtp_pay, udpsink, NULL)) {
       switch_log_printf (SWITCH_CHANNEL_LOG, SWITCH_LOG_ERROR,
           "Failed to link elements");
       goto error;
