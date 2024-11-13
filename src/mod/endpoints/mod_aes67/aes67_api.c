@@ -53,6 +53,8 @@ channel_remap_t channel_remaps[] = {
   },
 };
 
+GstClock *g_sptpclk=NULL;             //added to free clock when required 
+
 static void
 dump_pipeline (GstPipeline *pipe, const char *name)
 {
@@ -847,7 +849,9 @@ create_pipeline (pipeline_data_t *data, event_callback_t * error_cb)
   }
 
   if (rtpdepay && data->synthetic_ptp) {
-    stream->clock = g_object_new (GST_TYPE_SYSTEM_CLOCK, "name", "SyntheticPtpClock", NULL);
+	if (!g_sptpclk) 
+        g_sptpclk = stream->clock =
+            g_object_new (GST_TYPE_SYSTEM_CLOCK, "name", "SyntheticPtpClock", NULL);
     stream->cb_rx_stats_id =
       g_timeout_add_full(G_PRIORITY_DEFAULT, SYNTHETIC_CLOCK_INTERVAL_MS, update_clock, stream, NULL);
     /* We'll set the pipeline clock once it's synced */
