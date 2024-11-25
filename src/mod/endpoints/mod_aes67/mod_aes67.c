@@ -1879,6 +1879,7 @@ emit_ptp_gm_change (gboolean synced)
 			globals.ptp_gm_mac_addr);
 
     switch_event_fire(&event);
+	switch_event_destroy(&event); // Add this line
   }
 }
 
@@ -2737,6 +2738,13 @@ load_config (void)
     if (NULL == ptp_clock) {
       switch_log_printf (SWITCH_CHANNEL_LOG, SWITCH_LOG_INFO,"Switching to Synthetic PTP \n");
       globals.synthetic_ptp = 1;
+
+      // Make sure old clock is freed
+	  if (globals.clock) {
+		  gst_object_unref(globals.clock);
+		  globals.clock = g_object_new(GST_TYPE_SYSTEM_CLOCK, "clock-type", GST_CLOCK_TYPE_REALTIME, NULL);
+	  }
+
     } else {
       /* using PTP clock, clean up the default GST_CLOCK_TYPE_REALTIME clock */
       gst_object_unref (globals.clock);
