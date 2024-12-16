@@ -3044,6 +3044,7 @@ create_shared_audio_stream (shared_audio_stream_t * shstream)
       switch_event_add_header_string (event, SWITCH_STACK_BOTTOM, "Reason",
           "Failed to create gstreamer pipeline");
       switch_event_fire (&event);
+	  switch_event_destroy(&event); // Memleak fix
     }
     return -1;
   }
